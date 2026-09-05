@@ -1,0 +1,40 @@
+name: Apply stability phase 1 patch
+
+on:
+  push:
+    branches:
+      - fix/core-stability-phase1
+    paths:
+      - .github/stability-phase1.patch
+
+permissions:
+  contents: write
+
+jobs:
+  apply-patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out stability branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/core-stability-phase1
+          fetch-depth: 0
+
+      - name: Apply stability patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply --check .github/stability-phase1.patch
+          git apply --whitespace=fix .github/stability-phase1.patch
+
+      - name: Commit patched source and remove one-shot files
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/stability-phase1.patch
+          rm -f .github/workflows/apply-stability-phase1.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix core PaintForm stability issues"
+          git push origin HEAD:fix/core-stability-phase1
