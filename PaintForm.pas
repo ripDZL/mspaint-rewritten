@@ -995,9 +995,6 @@ begin
   // Recent
   RecentFiles := TStringList.Create;
 
-  // Reset History
-  ResetHistory;
-
   AppData := GetPathInAppData('Paint', TAppDataType.Roaming, true);
 
   // Update
@@ -3352,7 +3349,7 @@ begin
     Properties.LoadImageData;
     Properties.ShowModal;
   finally
-    Properties.Free;
+    FreeAndNil(Properties);
   end;
 end;
 
@@ -3688,6 +3685,9 @@ var
   I: integer;
   ARect: TRect;
 begin
+  // This routine owns the selection bitmap it creates.
+  FreeAndNil(StolenZone);
+
   if SelectionType = TSelectionType.Rectangular then
     begin
       StolenZone := TBitMap.Create(SelectionImage.Width, SelectionImage.Height);
@@ -4109,10 +4109,11 @@ begin
       try
         try
           LoadGraphicAsBitmap(OpenPictureDialog1.FileName, ABitMap);
-
           PastePicture(ABitMap, GetTopmostPoint);
         except
-
+          on E: Exception do
+            MessageDlg('Paint could not paste the selected image.' + sLineBreak + E.Message,
+              mtError, [mbOk], 0);
         end;
       finally
         ABitMap.Free;
@@ -4139,14 +4140,11 @@ begin
   try
     try
       ABitMap.Assign(Clipboard);
-
-      // Finish Selection
-      FinishSelection();
-
-      // Paste
       PastePicture(ABitMap, GetTopmostPoint);
     except
-
+      on E: Exception do
+        MessageDlg('Paint could not paste the clipboard image.' + sLineBreak + E.Message,
+          mtError, [mbOk], 0);
     end;
   finally
     ABitMap.Free;
@@ -4170,7 +4168,8 @@ begin
   SelectMode := TSelectionMode.Exists;
   SelectionCanvas := DrawBox.ClientRect;
   SelectionImage := Rect(0, 0, Image.Width, Image.Height);
-  
+
+  FreeAndNil(StolenZone);
   StolenZone := TBitMap.Create;
   StolenZone.Assign( Image );
   
