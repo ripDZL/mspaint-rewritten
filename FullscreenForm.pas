@@ -27,7 +27,9 @@ implementation
 
 procedure TFullScreen.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
-  FreeAndNil( Fullscreen );
+  // Let VCL finish the close event before destroying the form instance.
+  FullScreen := nil;
+  Action := caFree;
 end;
 
 procedure TFullScreen.FormKeyPress(Sender: TObject; var Key: Char);
