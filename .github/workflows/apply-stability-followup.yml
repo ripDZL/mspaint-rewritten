@@ -1,0 +1,40 @@
+name: Apply stability follow-up edits
+
+on:
+  push:
+    branches:
+      - fix/core-stability-phase1
+    paths:
+      - .github/stability-followup.py
+
+permissions:
+  contents: write
+
+jobs:
+  apply-edits:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out stability branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/core-stability-phase1
+          fetch-depth: 0
+
+      - name: Apply asserted source replacements
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/stability-followup.py
+
+      - name: Commit and remove one-shot files
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/stability-followup.py
+          rm -f .github/workflows/apply-stability-followup.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Harden selection and clipboard error handling"
+          git push origin HEAD:fix/core-stability-phase1
