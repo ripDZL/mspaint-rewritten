@@ -50,29 +50,61 @@ uses
 
 {$R *.dfm}
 
+const
+  MAX_CANVAS_DIMENSION = 32767;
+  MAX_CANVAS_PIXELS = UInt64(64) * 1024 * 1024;
+
+function ValidCanvasSize(const W, H: Integer): Boolean;
+begin
+  Result := (W > 0) and (H > 0)
+    and (W <= MAX_CANVAS_DIMENSION)
+    and (H <= MAX_CANVAS_DIMENSION)
+    and (UInt64(W) * UInt64(H) <= MAX_CANVAS_PIXELS);
+end;
+
 procedure TProperties.Button1Click(Sender: TObject);
 var
-  W, H: integer;
+  W, H: Integer;
+  NewImage: TBitmap;
 begin
-  try
-    W := strtoint( Edit1.Text );
-    H := strtoint( Edit2.Text );
-  except
-    messagedlg('Please enter a positive number.', mtWarning, [mbOk], 0);
+  if not TryStrToInt(Edit1.Text, W) or not TryStrToInt(Edit2.Text, H)
+    or not ValidCanvasSize(W, H) then
+  begin
+    MessageDlg(
+      'Please enter a valid canvas size. Width and height must be positive, '
+      + 'no larger than 32767 pixels, and the total canvas must not exceed 64 megapixels.',
+      mtWarning, [mbOk], 0);
     Exit;
   end;
 
   if RadioButton1.Checked then
     Units := TUnit.Inch
-  else
-  if RadioButton2.Checked then
+  else if RadioButton2.Checked then
     Units := TUnit.Cm
-  else
-  if RadioButton3.Checked then
+  else if RadioButton3.Checked then
     Units := TUnit.Pixel;
 
-  Image.Width := W;
-  Image.Height := H;
+  if (Image.Width <> W) or (Image.Height <> H) then
+  begin
+    NewImage := TBitmap.Create;
+    try
+      NewImage.PixelFormat := Image.PixelFormat;
+      NewImage.SetSize(W, H);
+
+      // Match the normal canvas-resize behavior: newly exposed space uses Color 2.
+      NewImage.Canvas.Brush.Style := bsSolid;
+      NewImage.Canvas.Brush.Color := SecondaryColor;
+      NewImage.Canvas.FillRect(NewImage.Canvas.ClipRect);
+      NewImage.Canvas.Draw(0, 0, Image);
+
+      Image.Assign(NewImage);
+    finally
+      NewImage.Free;
+    end;
+
+    // A properties resize is a document edit and must participate in undo/save state.
+    MsPaint.UpdateCanvasDrawn;
+  end;
 
   MsPaint.UpdateSizing;
 end;
@@ -88,13 +120,13 @@ begin
   // Image
   if TFile.Exists(FileName) then
     begin
-      Label2.Caption := DateTimeToStr( TFile.GetLastWriteTime(FileName) );
+      Label2.Caption := DateTimeToStr(TFile.GetLastWriteTime(FileName));
       Label4.Caption := GetFileSizeInStr(FileName);
     end
   else
     begin
-      Label2.Caption := 'Not Avalabile';
-      Label4.Caption := 'Not Avalabile';
+      Label2.Caption := 'Not Available';
+      Label4.Caption := 'Not Available';
     end;
 
   Label6.Caption := GetCanvasDPI(Image.Canvas).ToString + ' DPI';
@@ -112,15 +144,12 @@ begin
 end;
 
 procedure TProperties.ValidateValues(Sender: TObject);
+var
+  W, H: Integer;
 begin
-  Button1.Enabled := true;
-  try
-    if (strtoint(Edit1.Text) < 0) or
-      (strtoint(Edit2.Text) < 0) then
-        Button1.Enabled := false;
-  except
-    Button1.Enabled := false;
-  end;
+  Button1.Enabled := TryStrToInt(Edit1.Text, W)
+    and TryStrToInt(Edit2.Text, H)
+    and ValidCanvasSize(W, H);
 end;
 
 end.

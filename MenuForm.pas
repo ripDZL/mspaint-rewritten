@@ -118,19 +118,21 @@ end;
 
 procedure TMenuPopup.HideTimerTimer(Sender: TObject);
 begin
-  if (Self = nil) or not Visible then
+  if not Visible then
     begin
       HideTimer.Enabled := false;
       Exit;
     end;
 
-  AlphaBlendValue := AlphaBlendValue - 5;
-
-  if AlphaBlendValue = 0 then
+  if AlphaBlendValue <= 5 then
     begin
+      AlphaBlendValue := 0;
       Hide;
       HideTimer.Enabled := false;
+      Exit;
     end;
+
+  AlphaBlendValue := AlphaBlendValue - 5;
 end;
 
 procedure TMenuPopup.LoadRecents;
@@ -138,14 +140,14 @@ var
   I: Integer;
 begin
   for I := Menu_Recents.ControlCount-1 downto 0 do
-    Menu_Recents.Controls[I].Destroy;
+    Menu_Recents.Controls[I].Free;
 
   for I := RecentFiles.Count -1 downto 0 do
     with TSpeedButton.Create(Menu_Recents) do
       begin
         Parent := Menu_Recents;
 
-        Caption := '&' + I.ToString + '   ' + ExtractFilename( RecentFiles[I] );
+        Caption := '&' + I.ToString + '   ' + ExtractFilename(RecentFiles[I]);
         Tag := I;
 
         Margin := 5;
@@ -223,21 +225,25 @@ begin
       end;
   end;
 end;
+
 procedure TMenuPopup.WallpaperTypeSelect(Sender: TObject);
 var
   Mode: TWallpaperStyle;
 begin
-  // Wallpaper
-  if not FileSaved then
-    case messagedlg('You must save the file before choosing it as desktop background.', mtWarning, [mbOk, mbCancel], 0) of
-      mrOk: MenuItemClick(SpeedButton3);
-    end
-  else
-    begin
-      Mode := TWallpaperStyle(TSpeedButton(Sender).Tag);
+  // Always apply the latest document contents, not a stale on-disk version.
+  if (not FileSaved) or ChangesUnsaved then
+  begin
+    if MessageDlg(
+      'The latest image changes must be saved before using it as the desktop background.',
+      mtWarning, [mbOk, mbCancel], 0) <> mrOk then
+      Exit;
 
-      SetWallpaper(FileName, Mode);
-    end;
+    if not MsPaint.SaveFileOptional then
+      Exit;
+  end;
+
+  Mode := TWallpaperStyle(TSpeedButton(Sender).Tag);
+  SetWallpaper(FileName, Mode);
 
   // Close
   SlowHide;
@@ -253,7 +259,6 @@ begin
     3: MsPaint.SavePictureDialog1.FileName := ChangeFileExt(FileDisplayName, '.bmp');
     4: MsPaint.SavePictureDialog1.FileName := ChangeFileExt(FileDisplayName, '.gif');
   end;
-
 
   // Execute
   MenuItemClick(SpeedButton4);
@@ -296,8 +301,7 @@ begin
         Exit;
 
       MsPaint.NewDocument;
-
-      Mspaint.UpdateSizing;
+      MsPaint.UpdateSizing;
     end;
     2: begin
       if not CheckSavedCanProceed then
@@ -317,7 +321,7 @@ begin
         Properties.LoadImageData;
         Properties.ShowModal;
       finally
-        Properties.Free;
+        FreeAndNil(Properties);
       end;
     end;
     9: Shellapi.ShellAbout(Handle, 'Paint', '', Application.Icon.Handle);
@@ -329,25 +333,47 @@ end;
 
 procedure TMenuPopup.RecentItemClick(Sender: TObject);
 var
-  AName: string;
+  AName, PreviousFileName: string;
+  I: Integer;
 begin
-  // Select
+  // Capture the clicked target before CheckSavedCanProceed: saving the current
+  // document can mutate RecentFiles and invalidate the button's numeric index.
+  I := TSpeedButton(Sender).Tag;
+  if (I < 0) or (I >= RecentFiles.Count) then
+    Exit;
+  AName := RecentFiles[I];
+
   if not CheckSavedCanProceed then
     Exit;
 
-  AName := RecentFiles[TSpeedButton(Sender).Tag];
-
   if not TFile.Exists(AName) then
-    messagedlg(AName + ' was not found.', mtWarning, [mbOk], 0)
-  else
     begin
-      FileName := AName;
-      MsPaint.LoadFile;
-      MsPaint.UpdateSizing;
-
-      // Close
-      SlowHide;
+      MessageDlg(AName + ' was not found.', mtWarning, [mbOk], 0);
+      I := RecentFiles.IndexOf(AName);
+      if I <> -1 then
+        RecentFiles.Delete(I);
+      LoadRecents;
+      Exit;
     end;
+
+  PreviousFileName := FileName;
+  FileName := AName;
+  try
+    MsPaint.LoadFile;
+  except
+    on E: Exception do
+      begin
+        FileName := PreviousFileName;
+        MessageDlg('Paint could not open the selected recent image.' + sLineBreak + E.Message,
+          mtError, [mbOk], 0);
+        Exit;
+      end;
+  end;
+
+  MsPaint.UpdateSizing;
+
+  // Close
+  SlowHide;
 end;
 
 end.

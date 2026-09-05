@@ -25,7 +25,9 @@ implementation
 
 procedure TThumbnail.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
-  FreeAndNil( Thumbnail );
+  // Let VCL finish dispatching OnClose before the form is destroyed.
+  Thumbnail := nil;
+  Action := caFree;
 end;
 
 end.
