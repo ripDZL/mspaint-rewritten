@@ -230,12 +230,11 @@ procedure TMenuPopup.WallpaperTypeSelect(Sender: TObject);
 var
   Mode: TWallpaperStyle;
 begin
-  // A wallpaper must exist on disk. If needed, save first and only continue
-  // when the save actually succeeded.
-  if not FileSaved then
+  // Always apply the latest document contents, not a stale on-disk version.
+  if (not FileSaved) or ChangesUnsaved then
   begin
     if MessageDlg(
-      'You must save the file before choosing it as desktop background.',
+      'The latest image changes must be saved before using it as the desktop background.',
       mtWarning, [mbOk, mbCancel], 0) <> mrOk then
       Exit;
 
@@ -301,13 +300,7 @@ begin
       if not CheckSavedCanProceed then
         Exit;
 
-      // Drop any transient selection state before replacing the document.
-      MsPaint.FinishSelection(TCloseMode.Fail);
       MsPaint.NewDocument;
-      MsPaint.ResetHistory;
-      FileSaved := false;
-      ChangesUnsaved := false;
-
       MsPaint.UpdateSizing;
     end;
     2: begin
@@ -328,7 +321,7 @@ begin
         Properties.LoadImageData;
         Properties.ShowModal;
       finally
-        Properties.Free;
+        FreeAndNil(Properties);
       end;
     end;
     9: Shellapi.ShellAbout(Handle, 'Paint', '', Application.Icon.Handle);
@@ -340,7 +333,8 @@ end;
 
 procedure TMenuPopup.RecentItemClick(Sender: TObject);
 var
-  AName: string;
+  AName, PreviousFileName: string;
+  I: Integer;
 begin
   // Select
   if not CheckSavedCanProceed then
@@ -349,16 +343,33 @@ begin
   AName := RecentFiles[TSpeedButton(Sender).Tag];
 
   if not TFile.Exists(AName) then
-    MessageDlg(AName + ' was not found.', mtWarning, [mbOk], 0)
-  else
     begin
-      FileName := AName;
-      MsPaint.LoadFile;
-      MsPaint.UpdateSizing;
-
-      // Close
-      SlowHide;
+      MessageDlg(AName + ' was not found.', mtWarning, [mbOk], 0);
+      I := RecentFiles.IndexOf(AName);
+      if I <> -1 then
+        RecentFiles.Delete(I);
+      LoadRecents;
+      Exit;
     end;
+
+  PreviousFileName := FileName;
+  FileName := AName;
+  try
+    MsPaint.LoadFile;
+  except
+    on E: Exception do
+      begin
+        FileName := PreviousFileName;
+        MessageDlg('Paint could not open the selected recent image.' + sLineBreak + E.Message,
+          mtError, [mbOk], 0);
+        Exit;
+      end;
+  end;
+
+  MsPaint.UpdateSizing;
+
+  // Close
+  SlowHide;
 end;
 
 end.
