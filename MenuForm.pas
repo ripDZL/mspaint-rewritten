@@ -118,19 +118,21 @@ end;
 
 procedure TMenuPopup.HideTimerTimer(Sender: TObject);
 begin
-  if (Self = nil) or not Visible then
+  if not Visible then
     begin
       HideTimer.Enabled := false;
       Exit;
     end;
 
-  AlphaBlendValue := AlphaBlendValue - 5;
-
-  if AlphaBlendValue = 0 then
+  if AlphaBlendValue <= 5 then
     begin
+      AlphaBlendValue := 0;
       Hide;
       HideTimer.Enabled := false;
+      Exit;
     end;
+
+  AlphaBlendValue := AlphaBlendValue - 5;
 end;
 
 procedure TMenuPopup.LoadRecents;
@@ -138,14 +140,14 @@ var
   I: Integer;
 begin
   for I := Menu_Recents.ControlCount-1 downto 0 do
-    Menu_Recents.Controls[I].Destroy;
+    Menu_Recents.Controls[I].Free;
 
   for I := RecentFiles.Count -1 downto 0 do
     with TSpeedButton.Create(Menu_Recents) do
       begin
         Parent := Menu_Recents;
 
-        Caption := '&' + I.ToString + '   ' + ExtractFilename( RecentFiles[I] );
+        Caption := '&' + I.ToString + '   ' + ExtractFilename(RecentFiles[I]);
         Tag := I;
 
         Margin := 5;
@@ -223,21 +225,26 @@ begin
       end;
   end;
 end;
+
 procedure TMenuPopup.WallpaperTypeSelect(Sender: TObject);
 var
   Mode: TWallpaperStyle;
 begin
-  // Wallpaper
+  // A wallpaper must exist on disk. If needed, save first and only continue
+  // when the save actually succeeded.
   if not FileSaved then
-    case messagedlg('You must save the file before choosing it as desktop background.', mtWarning, [mbOk, mbCancel], 0) of
-      mrOk: MenuItemClick(SpeedButton3);
-    end
-  else
-    begin
-      Mode := TWallpaperStyle(TSpeedButton(Sender).Tag);
+  begin
+    if MessageDlg(
+      'You must save the file before choosing it as desktop background.',
+      mtWarning, [mbOk, mbCancel], 0) <> mrOk then
+      Exit;
 
-      SetWallpaper(FileName, Mode);
-    end;
+    if not MsPaint.SaveFileOptional then
+      Exit;
+  end;
+
+  Mode := TWallpaperStyle(TSpeedButton(Sender).Tag);
+  SetWallpaper(FileName, Mode);
 
   // Close
   SlowHide;
@@ -253,7 +260,6 @@ begin
     3: MsPaint.SavePictureDialog1.FileName := ChangeFileExt(FileDisplayName, '.bmp');
     4: MsPaint.SavePictureDialog1.FileName := ChangeFileExt(FileDisplayName, '.gif');
   end;
-
 
   // Execute
   MenuItemClick(SpeedButton4);
@@ -295,9 +301,14 @@ begin
       if not CheckSavedCanProceed then
         Exit;
 
+      // Drop any transient selection state before replacing the document.
+      MsPaint.FinishSelection(TCloseMode.Fail);
       MsPaint.NewDocument;
+      MsPaint.ResetHistory;
+      FileSaved := false;
+      ChangesUnsaved := false;
 
-      Mspaint.UpdateSizing;
+      MsPaint.UpdateSizing;
     end;
     2: begin
       if not CheckSavedCanProceed then
@@ -338,7 +349,7 @@ begin
   AName := RecentFiles[TSpeedButton(Sender).Tag];
 
   if not TFile.Exists(AName) then
-    messagedlg(AName + ' was not found.', mtWarning, [mbOk], 0)
+    MessageDlg(AName + ' was not found.', mtWarning, [mbOk], 0)
   else
     begin
       FileName := AName;
