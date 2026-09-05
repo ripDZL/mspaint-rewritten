@@ -222,25 +222,24 @@ end;
 procedure LoadGraphicAsBitmap(FileName: string; var BitMap: TBitMap);
 var
   P: TPicture;
+  NewBitmap: TBitMap;
 begin
-  // Determine File Type
+  // Load transactionally so a failed load never destroys the caller's bitmap.
   P := TPicture.Create;
-  BitMap := TBitMap.Create;
-  BitMap.PixelFormat := pf32bit;
-  Bitmap.TransparentMode := tmAuto;
+  NewBitmap := TBitMap.Create;
   try
-    BitMap.Canvas.Lock;
-    try
-      // Load
-      P.LoadFromFile(FileName);
+    P.LoadFromFile(FileName);
 
-      // Assign
-      BitMap.Assign(P.Graphic);
-    finally
-      BitMap.Canvas.Unlock;
-    end;
+    NewBitmap.PixelFormat := pf32bit;
+    NewBitmap.TransparentMode := tmAuto;
+    NewBitmap.Assign(P.Graphic);
+
+    // Only replace the current bitmap after the new image loaded successfully.
+    BitMap.Free;
+    BitMap := NewBitmap;
+    NewBitmap := nil;
   finally
-    // Free Mem
+    NewBitmap.Free;
     P.Free;
   end;
 end;
