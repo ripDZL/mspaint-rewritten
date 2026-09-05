@@ -336,11 +336,15 @@ var
   AName, PreviousFileName: string;
   I: Integer;
 begin
-  // Select
+  // Capture the clicked target before CheckSavedCanProceed: saving the current
+  // document can mutate RecentFiles and invalidate the button's numeric index.
+  I := TSpeedButton(Sender).Tag;
+  if (I < 0) or (I >= RecentFiles.Count) then
+    Exit;
+  AName := RecentFiles[I];
+
   if not CheckSavedCanProceed then
     Exit;
-
-  AName := RecentFiles[TSpeedButton(Sender).Tag];
 
   if not TFile.Exists(AName) then
     begin
