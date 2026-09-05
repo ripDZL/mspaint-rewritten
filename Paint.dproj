@@ -112,7 +112,6 @@
         <VerInfo_Locale>1033</VerInfo_Locale>
         <VerInfo_Keys>CompanyName=;FileDescription=Paint;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=Paint;ProductName=Paint;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
         <Icon_MainIcon>Paint_Icon.ico</Icon_MainIcon>
-        <Debugger_RunParams>&quot;C:\Users\Codrut\Downloads\test.png&quot;</Debugger_RunParams>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2)'!=''">
         <DCC_LocalDebugSymbols>false</DCC_LocalDebugSymbols>
